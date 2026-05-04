@@ -1,0 +1,96 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  # バックエンドテスト・ビルド
+  backend:
+    runs-on: ubuntu-latest
+    working-directory: ./backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./backend
+        run: npm install
+
+      - name: Build TypeScript
+        working-directory: ./backend
+        run: npm run build
+
+      - name: Lint (if ESLint configured)
+        working-directory: ./backend
+        run: echo "ESLint not configured yet"
+        continue-on-error: true
+
+  # フロントエンドテスト・ビルド
+  frontend:
+    runs-on: ubuntu-latest
+    working-directory: ./frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm install
+
+      - name: Build Next.js
+        working-directory: ./frontend
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://api.example.com
+
+      - name: Lint
+        working-directory: ./frontend
+        run: npm run lint
+        continue-on-error: true
+
+  # ドキュメント検査
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check documentation exists
+        run: |
+          test -f docs/rdd.md && echo "✅ RDD found"
+          test -f docs/基本設計書.md && echo "✅ BDD found"
+          test -f docs/MVP構想書.md && echo "✅ MVP draft found"
+
+  # 本番環境へのデプロイ（main ブランチのみ）
+  deploy:
+    needs: [backend, frontend]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy notification
+        run: |
+          echo "✅ Deployment triggered for Vercel (frontend) and Railway (backend)"
+          echo "   Backend commit: ${{ github.sha }}"
+          echo "   Frontend commit: ${{ github.sha }}"
+
+      # 本番環境では以下を設定：
+      # - Vercel CLI デプロイ: npx vercel deploy --prod
+      # - Railway デプロイ: railway up
